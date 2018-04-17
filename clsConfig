@@ -1,0 +1,205 @@
+Option Explicit
+'==========================================================================================================
+' Program:     clsConfig
+' Description: Reads in a simple way a java properties file (not bulletproof)
+' Comments:    see https://commons.apache.org/proper/commons-configuration/userguide/howto_properties.html
+' Version:     0.1
+' Author:      Elwin Wildschut
+' Date:        18-april-2018
+' ----------------------------------------------
+' 18-april-2018 versin 0.1
+'     - Initial rudimentary version
+'     - TODO: Add include
+'     - TODO: Test on some real life files
+'==========================================================================================================
+Private strProperties As String              'Just keeps the whole config file in a string
+Private arrSpecialCharacters As Variant      'The special \ escaping characters
+
+Private Sub Class_Initialize()
+    arrSpecialCharacters = Split("\\,$slash,\=,$eq,\ ,$space,\:,$colon,\;,$semicolon", ",")
+End Sub
+
+Public Sub load(strPropertiesFileName As String)
+    Dim strFullFileName As String
+    Dim oFSO As FileSystemObject
+    
+    strFullFileName = Application.Path & strPropertiesFileName
+    Set objTextFile = oFSO.OpenTextFile(strFullFileName, ForReading)
+    setProperties (oTextFile.ReadAll)
+    oTextFile.Close
+End Sub
+Public Sub setProperties(strData As String)
+    strProperties = strData
+    cleanThePropertiesString
+End Sub
+Sub replaceIncludes()
+   'TODO:
+End Sub
+Sub cleanThePropertiesString()
+    Dim i As Long
+    replaceIncludes
+    'Replace the special characters
+    For i = 0 To UBound(arrSpecialCharacters) Step 2
+        strProperties = Replace(strProperties, arrSpecialCharacters(i), arrSpecialCharacters(i + 1))
+    Next
+       
+    'The special line endings just replace with nothing or remove crlf to make it continuous lines
+    strProperties = Replace(strProperties, "\" + vbCrLf, "")
+    strProperties = Replace(strProperties, "\" + Chr(10), "")
+    strProperties = Replace(strProperties, "\" + Chr(13), "")
+
+    strProperties = Replace(strProperties, ";" + vbCrLf, ";")
+    strProperties = Replace(strProperties, ";" + Chr(10), ";")
+    strProperties = Replace(strProperties, ";" + Chr(13), ";")
+    
+    strProperties = Replace(strProperties, "," + vbCrLf, ",")
+    strProperties = Replace(strProperties, "," + Chr(10), ",")
+    strProperties = Replace(strProperties, "," + Chr(13), ",")
+
+    'Remove the non preferred way of writing equality
+    strProperties = Replace(strProperties, " =", "=")
+    strProperties = Replace(strProperties, "= ", "=")
+    
+End Sub
+Public Function getProperty(strKey As String) As String
+    Dim strKey2Find As String
+    Dim tKeyPos As Long
+    Dim tPos1 As Long
+    Dim tPos2 As Long
+    Dim i As Long
+    
+    Dim strKeyFound As String
+    Dim strValue As String
+    Dim keyLine As String
+    
+    'Include the equal character for finding the full key to circumvent prop1 finds prop10
+    strKey2Find = strKey + "="
+    
+    'Replace the special characters
+    For i = 0 To UBound(arrSpecialCharacters) Step 2
+        strKey2Find = Replace(strKey2Find, arrSpecialCharacters(i), arrSpecialCharacters(i + 1))
+    Next
+
+    'Lets get the whole keyLine
+    tPos1 = InStr(strProperties, strKey2Find)
+    If tPos1 > 0 Then
+        tKeyPos = tPos1
+        While (tKeyPos > 0)
+            tKeyPos = InStr(tKeyPos + 1, strProperties, strKey2Find)
+            If tKeyPos > 0 Then tPos2 = tKeyPos
+        Wend
+        
+        tPos2 = InStr(tPos2 + tPos1, strProperties, vbCrLf)
+        If tPos2 = 0 Then tPos2 = Len(strProperties)
+    Else
+        keyLine = strKey2Find & "="
+    End If
+        
+    If ((tPos1 > 0) And (tPos2 > 0)) Then
+        keyLine = Mid(strProperties, tPos1, tPos2 - tPos1)
+    End If
+    
+    'Split and get key/value pair
+    strKeyFound = Left(keyLine, InStr(keyLine, "=") - 1)
+    strValue = Replace(keyLine, strKeyFound + "=", "")
+    
+    'Replace the special characters with their original value minus the first character
+    For i = 1 To UBound(arrSpecialCharacters) Step 2
+        strValue = Replace(strValue, arrSpecialCharacters(i), Mid(arrSpecialCharacters(i - 1), 2))
+    Next
+    
+    'And replace multiline strings with a comma
+    strValue = Replace(strValue, vbCrLf, ",")
+    
+    getProperty = strValue
+End Function
+
+'For testing the class
+' Dim oConfigTest As New clsConfig
+' oConfigTest.Validate_clsConfigTest
+Sub Validate_clsConfigTest()
+    Dim i As Long
+    Dim j As Long
+    Dim k As Long
+    Dim iValue As Long
+    
+    Dim testString As String
+    
+    i = Rnd(-1)
+    Randomize 1
+    
+    testString = ""
+    For i = 1 To 15
+        j = Int((3 - 1 + 1) * Rnd + 1)
+        
+        'Standard
+        If j = 1 Then
+            testString = testString + "property " & i & "=value " & i & vbCrLf
+        End If
+        
+        'Semicolon
+        If j = 2 Then
+            iValue = Int((10 - 1 + 1) * Rnd + 1)
+            testString = testString + "property " & i & "="
+            For k = 65 To 65 + iValue
+                testString = testString + Chr(k) + ";"
+                If (k Mod 2) = 0 Then testString = testString + vbCrLf
+            Next
+            testString = testString + Chr(65 + iValue + 1) & vbCrLf
+        End If
+        
+        'Slash
+        If j = 3 Then
+            iValue = Int((10 - 1 + 1) * Rnd + 1)
+            testString = testString + "property " & i & "="
+            For k = 65 To 65 + iValue
+                testString = testString + Chr(k) + ";"
+                If (k Mod 2) = 0 Then testString = testString + "\" + vbCrLf
+            Next
+            testString = testString + Chr(65 + iValue + 1) & vbCrLf
+        End If
+    Next
+    
+    Debug.Print testString
+    
+    Me.setProperties (testString)
+    
+    For i = 1 To 15
+        Debug.Print "Property " & i; " gave this result " + Me.getProperty("property " & i)
+    Next
+    
+
+'2nd test manually
+    testString = "prop 1=A" + vbCrLf
+    testString = testString + "prop.subprop.2=B" + vbCrLf
+    testString = testString + "pro\ p3=C;" + vbCrLf
+    testString = testString + "prop3=D" + vbCrLf
+    testString = testString + "prop4=E,\" + vbCrLf
+    testString = testString + "\\F,\" + vbCrLf
+    testString = testString + "F,\" + vbCrLf
+    testString = testString + "\=F,\" + vbCrLf
+    testString = testString + "\:F,\" + vbCrLf
+    testString = testString + "G" + vbCrLf
+    testString = testString + "prop7=G\\\:\b\a\ \=" + vbCrLf
+    testString = testString + "prop8=H" + vbCrLf
+    testString = testString + "config.dirs = \\\\share1" + vbCrLf
+    testString = testString + "config.dirs = \\\\share2" + vbCrLf
+    testString = testString + "config.dirs2 = \\\\share3\" + vbCrLf
+    testString = testString + "config.dirs3 = \\\\share4" + vbCrLf
+
+    Me.setProperties (testString)
+    
+    Debug.Print testString
+    
+    Debug.Print Me.getProperty("config.dirs2")
+    Debug.Print Me.getProperty("config.dirs")
+    Debug.Print Me.getProperty("prop8")
+    Debug.Print Me.getProperty("prop7")
+    Debug.Print Me.getProperty("prop6")
+    Debug.Print Me.getProperty("prop4")
+    Debug.Print Me.getProperty("prop3")
+    Debug.Print Me.getProperty("prop.subprop.2")
+    Debug.Print Me.getProperty("prop 1")
+    
+End Sub
+
