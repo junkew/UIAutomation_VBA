@@ -1,0 +1,237 @@
+'************************************************************************************************************************************************
+'* Module       : mdlWin32API_Extended
+'* Date         : Jan 2018
+'* Author       : Elwin Wildschut
+'* Team         :
+'* Version      : 0.1
+'************************************************************************************************************************************************
+'* Purpose: Gemeric Win32 API functions which are not in standard mdlWin32ApiPtrSafe module
+'* Inputs:  N/A
+'* Returns: N/A
+'************************************************************************************************************************************************
+'* Reviewed by  :
+'************************************************************************************************************************************************
+
+'Public Declare Function SendInput Lib "user32.dll" (ByVal nInputs As Long, pInputs As GENERALINPUT, ByVal cbSize As Long) As Long
+'Windows API Function Declarations
+Const INPUT_MOUSE = 0
+Const INPUT_KEYBOARD = 1
+Const INPUT_HARDWARE = 2
+#If Win64 = 1 And VBA7 = 1 Then
+'typedef struct tagMOUSEINPUT {
+'    LONG    dx;
+'    LONG    dy;
+'    DWORD   mouseData;
+'    DWORD   dwFlags;
+'    DWORD   time;
+'    ULONG_PTR dwExtraInfo;
+'} MOUSEINPUT, *PMOUSEINPUT, FAR* LPMOUSEINPUT;
+'
+'typedef struct tagKEYBDINPUT {
+'    WORD    wVk;
+'    WORD    wScan;
+'    DWORD   dwFlags;
+'    DWORD   time;
+'    ULONG_PTR dwExtraInfo;
+'} KEYBDINPUT, *PKEYBDINPUT, FAR* LPKEYBDINPUT;
+'
+'typedef struct tagHARDWAREINPUT {
+'    DWORD   uMsg;
+'    WORD    wParamL;
+'    WORD    wParamH;
+'} HARDWAREINPUT, *PHARDWAREINPUT, FAR* LPHARDWAREINPUT;
+
+    Public Declare PtrSafe Function SendInput Lib "user32" (ByVal nInputs As Long, pInputs As Any, ByVal cbSize As Long) As Long
+    Public Type MOUSEINPUT
+      dX As Long
+      dY As Long
+      mouseData As Long
+      dwFlags As Long
+      time As Long
+      dwExtraInfo As LongPtr
+    End Type
+    
+'        Private Type MOUSEINPUT
+'        dX As Long
+'        dY As Long
+'        mouseData As Long
+'        dwFlags As Long
+'        time As LongLong
+'        dwExtraInfo As LongPtr
+'    End Type
+    
+    Public Type KEYBDINPUT
+      wVk As Integer
+      wScan As Integer
+      dwFlags As Long
+      time As Long
+      dwExtraInfo As LongPtr
+      dummy1 As Long
+      dummy2 As Long
+    End Type
+    
+    Public Type HARDWAREINPUT
+      uMsg As Long
+      wParamL As Integer
+      wParamH As Integer
+    End Type
+    
+' Private Structure INPUT
+'        <FieldOffset(0)> _
+'        Public type As Integer
+'        <FieldOffset(8)> _
+'        Public mi As MOUSEINPUT
+'        <FieldOffset(8)> _
+'        Public ki As KEYBDINPUT
+'        <FieldOffset(8)> _
+'        Public hi As HARDWAREINPUT
+'    End Structure
+   
+' Field offset 32 bit machine 4 64 bit machine 8
+' total size has to be 28
+   Public Type GENERALINPUT
+      dwType As LongPtr
+     ' xi(0 To 23) As Byte
+      xi(0 To 31) As Byte
+        'xi As MOUSEINPUT
+    End Type
+    
+#Else
+   
+    Public Type MOUSEINPUT
+      dX As Long
+      dY As Long
+      mouseData As Long
+      dwFlags As Long
+      time As Long
+      dwExtraInfo As Long
+    End Type
+    
+    Public Type KEYBDINPUT
+      wVk As Integer
+      wScan As Integer
+      dwFlags As Long
+      time As Long
+      dwExtraInfo As Long
+    End Type
+    
+    Public Type HARDWAREINPUT
+      uMsg As Long
+      wParamL As Integer
+      wParamH As Integer
+    End Type
+    
+    Public Type GENERALINPUT
+      dwType As Long
+      xi(0 To 23) As Byte
+    End Type
+#End If
+Public Sub testTagSize()
+    Dim g As GENERALINPUT
+    Dim m As MOUSEINPUT
+    Dim k As KEYBDINPUT
+    
+    Debug.Print LenB(g)
+    Debug.Print LenB(g.dwType)
+    Debug.Print LenB(m)
+    Debug.Print LenB(k)
+'    Debug.Print LenB(g.xi)
+    
+End Sub
+
+
+Sub testme()
+    Debug.Print GetForegroundWindow()
+End Sub
+
+'extern.Declare micLong, "GetForegroundWindow", "user32.dll", "GetForegroundWindow"
+'extern.Declare micLong, "AttachThreadInput", "user32.dll", "AttachThreadInput", micLong, micLong, micLong
+'extern.Declare micLong, "GetWindowThreadProcessId", "user32.dll", "GetWindowThreadProcessId", micLong, micLong
+'extern.Declare micLong, "GetCurrentThreadId", "kernel32.dll", "GetCurrentThreadId"
+'extern.Declare micLong, "GetCursor", "user32.dll", "GetCursor"
+
+Function get_cursor()
+    hwnd = GetForegroundWindow()
+    pid = GetWindowThreadProcessId(hwnd, 0)
+    thread_id = GetCurrentThreadId()
+    AttachThreadInput pid, thread_id, True
+    get_cursor = GetCursor()
+    AttachThreadInput pid, thread_id, False
+End Function
+'testit: call drawrectangle(getdc(0),10,10,100,100)
+Sub drawRectangle(lDC As LongPtr, x1, y1, x2, y2, Optional blinkCount = 1)
+    Dim tp As POINTAPI
+    Dim hOldPen As LongPtr, hPen As LongPtr
+    Dim logBR As LOGBRUSH
+    Dim i As Integer
+    
+    i = 1
+    hPen = CreatePen(0, 2, vbRed)
+       
+    hOldPen = SelectObject(lDC, hPen)
+    MoveToEx lDC, x1, y1, tp
+    LineTo lDC, x2, y1
+    LineTo lDC, x2, y2
+    LineTo lDC, x1, y2
+    LineTo lDC, x1, y1
+       
+    DeleteObject SelectObject(lDC, hOldPen)
+End Sub
+
+'Some bit logic in excel 2007 and 2010
+' 2013 has bitwise functions BITNOT, BITAND, BITOR and BITNOT
+Public Function BITWISE_XOR(X As Long, Y As Long) As Long
+    BITWISE_XOR = X Xor Y
+End Function
+ 
+Public Function BITWISE_NOT(X As Long) As Long
+    BITWISE_NOT = Not X
+End Function
+ 
+Public Function BITWISE_AND(X As Long, Y As Long) As Long
+    BITWISE_AND = X And Y
+End Function
+ 
+Public Function BITWISE_OR(ByVal X As Long, ByVal Y As Long) As Long
+    BITWISE_OR = X Or Y
+End Function
+Public Function ScreenHeight() As Long
+    ScreenHeight = GetSystemMetrics(SM_CYSCREEN)
+End Function
+
+Public Function ScreenWidth() As Long
+    ScreenWidth = GetSystemMetrics(SM_CXSCREEN)
+End Function
+
+Public Function ProcIDFromWnd(ByVal hwnd As LongPtr) As Long
+   Dim idProc As Long
+  
+   ' Get PID for this HWnd
+   GetWindowThreadProcessId hwnd, idProc
+   ProcIDFromWnd = idProc
+End Function
+      
+Public Function GetWinHandle(hInstance As LongPtr) As LongPtr
+   Dim tempHwnd As LongPtr
+      
+   ' Grab the first window handle that Windows finds:
+   tempHwnd = FindWindow(vbNullString, vbNullString)
+   
+   ' Loop until you find a match or there are no more window handles:
+   Do Until tempHwnd = 0
+      ' Check if no parent for this window
+      If GetParent(tempHwnd) = 0 Then
+         ' Check for PID match
+         If hInstance = ProcIDFromWnd(tempHwnd) Then
+            ' Return found handle
+            GetWinHandle = tempHwnd
+            ' Exit search loop
+            Exit Do
+         End If
+      End If
+   
+      ' Get the next window handle
+      tempHwnd = GetWindow(tempHwnd, GW_HWNDNEXT)
+   Loop
+End Function
+
